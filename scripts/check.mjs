@@ -78,7 +78,17 @@ try {
   await write('content/posts/sample-post.md', samplePost);
   await write('content/projects/sample-project.md', sampleProject);
   for (const name of ['WORKSHOP', 'FACILITATOR', 'CUSTOMIZE', 'TROUBLESHOOTING', 'AI-PROMPTS', 'WORKSHEET']) await write(`docs/${name}.md`, `# ${name}\n\nRead the [workshop](WORKSHOP.md).`);
+  await write('docs/TROUBLESHOOTING.md', '# Troubleshooting\n\n## The build found a misplaced settings file\n\nOpen the correct content folder.');
   for (const name of ['styles.css', 'app.js', 'favicon.svg']) await write(`assets/${name}`, '');
+  const settingsPath = path.resolve(temporary, 'content/site.yml');
+  assert.ok(settingsPath.startsWith(path.resolve(temporary) + path.sep));
+  await rm(settingsPath);
+  const firstBuildMissing = run({ GITHUB_ACTIONS: 'true' });
+  failed(firstBuildMissing, /content\/site\.yml.*required settings file is missing/);
+  assert.match(firstBuildMissing.stderr, /::error title=Blog needs one correction,file=content\/site\.yml::/);
+  assert.match(firstBuildMissing.stderr, /No new dist\/ output was published/);
+  assert.doesNotMatch(firstBuildMissing.stderr, /existing dist\/ output has been kept|previous successful/);
+  await setSite({});
   succeed(run());
   const homepage = await read('dist/index.html');
   assert.match(homepage, /noindex, nofollow/);
@@ -105,6 +115,80 @@ try {
   const outputText = await allOutputText();
   assert.doesNotMatch(outputText, /DRAFT_SENTINEL|PRIVATE_DRAFT_SENTINEL|FUTURE_SENTINEL|FUTURE_BODY_SENTINEL/);
   console.log('PASS: project-subdirectory deployment, RSS, sitemap, and draft/future exclusion.');
+
+  for (const deployment of [
+    { url: 'https://gloria-obeng.github.io/Tigers-AI-Test/', base: '/Tigers-AI-Test' },
+    { url: 'https://gloria-obeng.github.io/', base: '' }
+  ]) {
+    succeed(run({ SITE_URL: deployment.url }));
+    await checkLinks(deployment.base);
+    const home = await read('dist/index.html');
+    assert.ok(home.includes(`rel="canonical" href="${deployment.url}"`));
+    assert.ok(home.includes(`href="${deployment.base}/assets/styles.css"`));
+    assert.ok(home.includes(`src="${deployment.base}/assets/app.js"`));
+    assert.ok(home.includes(`href="${deployment.base}/writing/"`));
+    assert.ok((await read('dist/feed.xml')).includes(`${deployment.url}posts/first-post/`));
+    assert.ok((await read('dist/sitemap.xml')).includes(`<loc>${deployment.url}posts/first-post/</loc>`));
+  }
+  console.log('PASS: hyphenated gloria-obeng username, mixed-case Tigers-AI-Test project path, and account-root links, assets, canonical, RSS, and sitemap.');
+
+  const originalSettings = await read('content/site.yml');
+  const settingsDigest = await digest();
+  const malformedSettings = 'name: "PRIVATE_NAME_SENTINEL"\ninitials: "YN"\nheadline: "PRIVATE_HEADLINE_SENTINEL\nBalanced and clear PRIVATE_CONTINUATION_SENTINEL"\ndescription: "A description"\n';
+  await write('content/site.yml', malformedSettings);
+  await write('site.yml', originalSettings);
+  const misplacedBeforeMalformed = run();
+  failed(misplacedBeforeMalformed, /site\.yml → settings file location: Found settings outside/);
+  assert.doesNotMatch(misplacedBeforeMalformed.stderr, /→ YAML|PRIVATE_.*_SENTINEL/);
+  assert.equal(await read('site.yml'), originalSettings);
+  assert.equal(await read('content/site.yml'), malformedSettings);
+  assert.equal(await digest(), settingsDigest);
+  await rm(path.join(temporary, 'site.yml'));
+  const malformed = run({ GITHUB_ACTIONS: 'true' });
+  failed(malformed, /content\/site\.yml → YAML \(line 3, column 37\)/);
+  assert.match(malformed.stderr, /Keep each quoted value on one line/);
+  assert.match(malformed.stderr, /Personalize your site/);
+  assert.match(malformed.stderr, /::error title=Blog needs one correction,file=content\/site\.yml,line=3,col=37::/);
+  assert.doesNotMatch(malformed.stderr, /PRIVATE_NAME_SENTINEL|PRIVATE_HEADLINE_SENTINEL|PRIVATE_CONTINUATION_SENTINEL/);
+  assert.equal(await read('content/site.yml'), malformedSettings);
+  assert.equal(await digest(), settingsDigest);
+  await setSite({});
+  for (const filename of ['site.yml', 'site (1).yml', 'site.yaml', 'site.yml.txt', 'content/site (1).yml', 'content/site.yaml', 'content/site.yml.txt', 'content/posts/site (2).yml', 'assets/uploads/site.yml', 'docs/site.yaml', 'templates/site-copy.yml']) {
+    await write(filename, originalSettings);
+    const result = run();
+    failed(result, /settings file location: Found settings outside/);
+    assert.ok(result.stderr.includes(`"${filename}"`), `Error must identify the misplaced settings file: ${filename}`);
+    assert.match(result.stderr, /copy all of its text into content\/site\.yml/);
+    assert.match(result.stderr, /Then remove the extra settings file/);
+    assert.match(result.stderr, /existing dist\/ output has been kept/);
+    assert.equal(await read(filename), originalSettings);
+    assert.equal(await read('content/site.yml'), originalSettings);
+    assert.equal(await digest(), settingsDigest);
+    const misplacedPath = path.resolve(temporary, filename);
+    assert.ok(misplacedPath.startsWith(path.resolve(temporary) + path.sep));
+    await rm(misplacedPath);
+  }
+  const punctuationPath = 'assets/uploads,100%/site.yml';
+  await write(punctuationPath, originalSettings);
+  const escapedAnnotation = run({ GITHUB_ACTIONS: 'true' });
+  failed(escapedAnnotation, /file=assets\/uploads%2C100%25\/site\.yml::/);
+  assert.match(escapedAnnotation.stderr, /::assets\/uploads,100%25\/site\.yml/);
+  assert.equal(await read(punctuationPath), originalSettings);
+  assert.equal(await digest(), settingsDigest);
+  await rm(path.join(temporary, punctuationPath));
+  await rm(settingsPath);
+  failed(run(), /required settings file is missing/);
+  assert.equal(await digest(), settingsDigest);
+  // The studio uses JSON-quoted strings: escaped newlines, quotes, and Unicode remain valid YAML.
+  const downloadedSettings = Object.entries({ ...site, headline: 'A balanced "clear" introduction\nA second line — 日本語', description: 'A path \\ and colon: without broken YAML.' })
+    .map(([key, value]) => `${key}: ${typeof value === 'boolean' ? value : JSON.stringify(value)}`).join('\n') + '\n';
+  await write('content/site.yml', downloadedSettings);
+  succeed(run());
+  assert.match(await read('dist/index.html'), /A balanced &quot;clear&quot; introduction\nA second line — 日本語/);
+  assert.equal(await read('content/site.yml'), downloadedSettings);
+  await setSite({});
+  succeed(run({ SITE_URL: 'https://username.github.io/professional-blog/' }));
+  console.log('PASS: misplaced and renamed settings fail before YAML parsing; exact recovery paths, safe annotations, missing settings, multiline errors, and downloaded escaped text preserve source and prior output.');
 
   const originalDigest = await digest();
   await setSite({ github: 'javascript:alert(1)' });

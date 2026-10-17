@@ -1,0 +1,15 @@
+# Your personal blog settings. Keep the field names; edit the values.
+# Upload this file as content/site.yml in your GitHub repository.
+name: "TigerAI Rehearsal"
+initials: "TR"
+headline: "A separate rehearsal for the TigerAI blog workshop."
+description: "This is an isolated test site for the TigerAI professional blog workshop. It demonstrates publishing and editing a fresh template copy; it is not a personal portfolio."
+role: "Workshop deployment test"
+location: ""
+email: ""
+url: ""
+github: ""
+linkedin: ""
+resumePdf: ""
+accent: "plum"
+templateMode: false
