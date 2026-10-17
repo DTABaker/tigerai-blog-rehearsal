@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, cp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, cp, rm, stat, symlink, unlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { stringify } from 'yaml';
@@ -153,7 +153,7 @@ try {
   assert.equal(await read('content/site.yml'), malformedSettings);
   assert.equal(await digest(), settingsDigest);
   await setSite({});
-  for (const filename of ['site.yml', 'site (1).yml', 'site.yaml', 'site.yml.txt', 'content/site (1).yml', 'content/site.yaml', 'content/site.yml.txt', 'content/posts/site (2).yml', 'assets/uploads/site.yml', 'docs/site.yaml', 'templates/site-copy.yml']) {
+  for (const filename of ['site.yml', 'site (1).yml', 'site.yaml', 'site.yml.txt', 'content/site (1).yml', 'content/site.yaml', 'content/site.yml.txt', 'content/posts/site (2).yml', 'assets/uploads/site.yml', 'docs/site.yaml', 'templates/site-copy.yml', 'scripts/site.yml', 'outer-folder/content/site.yml']) {
     await write(filename, originalSettings);
     const result = run();
     failed(result, /settings file location: Found settings outside/);
@@ -187,8 +187,25 @@ try {
   assert.match(await read('dist/index.html'), /A balanced &quot;clear&quot; introduction\nA second line — 日本語/);
   assert.equal(await read('content/site.yml'), downloadedSettings);
   await setSite({});
-  succeed(run({ SITE_URL: 'https://username.github.io/professional-blog/' }));
-  console.log('PASS: misplaced and renamed settings fail before YAML parsing; exact recovery paths, safe annotations, missing settings, multiline errors, and downloaded escaped text preserve source and prior output.');
+  const excludedSettings = ['node_modules/site.yml', 'dist/site.yml', '.hidden-settings/site.yml', 'outer-folder/node_modules/site.yml', 'outer-folder/dist/site.yml', 'outer-folder/.private/site.yml'];
+  for (const filename of excludedSettings) await write(filename, originalSettings);
+  const settingsLink = path.resolve(temporary, 'linked-settings');
+  const settingsLinkTarget = path.resolve(temporary, '.hidden-settings');
+  assert.ok(settingsLink.startsWith(path.resolve(temporary) + path.sep));
+  assert.ok(settingsLinkTarget.startsWith(path.resolve(temporary) + path.sep));
+  let settingsLinkCreated = false;
+  try {
+    await symlink(settingsLinkTarget, settingsLink, process.platform === 'win32' ? 'junction' : 'dir');
+    settingsLinkCreated = true;
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error.code)) throw error;
+    console.log('SKIP: this Windows environment does not permit the temporary directory-link fixture; GitHub Actions on Linux runs this check.');
+  }
+  try {
+    succeed(run({ SITE_URL: 'https://username.github.io/professional-blog/' }));
+    for (const filename of excludedSettings.filter(filename => filename !== 'dist/site.yml')) assert.equal(await read(filename), originalSettings);
+  } finally { if (settingsLinkCreated) await unlink(settingsLink); }
+  console.log(`PASS: misplaced and renamed settings anywhere in ordinary folders fail before YAML parsing; dependency/generated/hidden folders${settingsLinkCreated ? ' and linked directories' : ''} are excluded; exact recovery, safe annotations, missing settings, and multiline errors preserve source and prior output.`);
 
   const originalDigest = await digest();
   await setSite({ github: 'javascript:alert(1)' });

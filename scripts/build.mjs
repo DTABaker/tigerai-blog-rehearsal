@@ -90,14 +90,15 @@ async function source(filename) {
 
 async function checkSettingsLocation() {
   const misplaced = [];
-  const authoredFolders = new Set(['content', 'assets', 'docs', 'templates']);
+  const excludedFolders = new Set(['node_modules', 'dist']);
   const settingsName = /^site(?:[ _-]*(?:\(\d+\)|\d+|copy(?:[ _-]*\(\d+\))?))?\.ya?ml(?:\.txt)?$/i;
-  async function walk(folder = '', nested = false) {
+  async function walk(folder = '') {
     const entries = await readdir(path.join(root, folder), { withFileTypes: true });
     for (const entry of entries) {
       const filename = path.posix.join(folder, entry.name);
       if ((entry.isFile() || entry.isSymbolicLink()) && settingsName.test(entry.name) && filename !== 'content/site.yml') misplaced.push(filename);
-      if (entry.isDirectory() && !entry.name.startsWith('.') && (nested || authoredFolders.has(entry.name.toLowerCase()))) await walk(filename, true);
+      // Search ordinary folders, including accidental outer folders. Dirents do not follow symlinks.
+      if (entry.isDirectory() && !entry.isSymbolicLink() && !entry.name.startsWith('.') && !excludedFolders.has(entry.name.toLowerCase())) await walk(filename);
     }
   }
   await walk();
