@@ -354,8 +354,7 @@ catch (error) {
     const escapeData = value => String(value).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
     const escapeProperty = value => escapeData(value).replace(/:/g, '%3A').replace(/,/g, '%2C');
     const properties = ['title=Blog needs one correction'];
-    if (error.file) properties.push(`file=${escapeProperty(error.file)}`);
-    if (error.line) properties.push(`line=${error.line}`, `col=${error.column}`);
+    if (error.file) properties.push(`file=${escapeProperty(error.file)}`, `line=${error.line || 1}`, `col=${error.column || 1}`);
     console.error(`::error ${properties.join(',')}::${escapeData(error.message)}`);
   }
   const outcome = outputReplaced ? 'The new dist/ output was created, but final cleanup did not finish.'

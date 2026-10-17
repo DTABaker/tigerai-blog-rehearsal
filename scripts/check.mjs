@@ -85,7 +85,7 @@ try {
   await rm(settingsPath);
   const firstBuildMissing = run({ GITHUB_ACTIONS: 'true' });
   failed(firstBuildMissing, /content\/site\.yml.*required settings file is missing/);
-  assert.match(firstBuildMissing.stderr, /::error title=Blog needs one correction,file=content\/site\.yml::/);
+  assert.match(firstBuildMissing.stderr, /::error title=Blog needs one correction,file=content\/site\.yml,line=1,col=1::/);
   assert.match(firstBuildMissing.stderr, /No new dist\/ output was published/);
   assert.doesNotMatch(firstBuildMissing.stderr, /existing dist\/ output has been kept|previous successful/);
   await setSite({});
@@ -171,7 +171,7 @@ try {
   const punctuationPath = 'assets/uploads,100%/site.yml';
   await write(punctuationPath, originalSettings);
   const escapedAnnotation = run({ GITHUB_ACTIONS: 'true' });
-  failed(escapedAnnotation, /file=assets\/uploads%2C100%25\/site\.yml::/);
+  failed(escapedAnnotation, /file=assets\/uploads%2C100%25\/site\.yml,line=1,col=1::/);
   assert.match(escapedAnnotation.stderr, /::assets\/uploads,100%25\/site\.yml/);
   assert.equal(await read(punctuationPath), originalSettings);
   assert.equal(await digest(), settingsDigest);

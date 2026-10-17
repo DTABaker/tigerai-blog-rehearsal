@@ -2,8 +2,7 @@
 # Upload this file as content/site.yml in your GitHub repository.
 name: "TigerAI Rehearsal"
 initials: "TR"
-headline: "Intentional rehearsal missing quote
-Unindented continuation for guardrail test."
+headline: "A separate rehearsal for the TigerAI blog workshop."
 description: "This is an isolated test site for the TigerAI professional blog workshop. It demonstrates publishing and editing a fresh template copy; it is not a personal portfolio."
 role: "Workshop deployment test"
 location: ""
