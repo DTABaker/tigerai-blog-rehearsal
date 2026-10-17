@@ -174,7 +174,7 @@ Ask a facilitator to help if you have an earlier copy. Keep your existing reposi
 - `scripts/check-pages.test.mjs` — new
 - `package.json`
 
-The dependency lockfile does not need a change for this update. Do not overwrite **`content/`** or **`assets/uploads/`** with the template's defaults. Do not recreate the repository or replace your personal blog. To also update the help shown on your site, copy `scripts/setup-page.mjs`, `scripts/workshop-page.mjs`, and the current `README.md` and `docs/` guides. Review any help text you have customized before replacing it.
+The dependency lockfile does not need a change for this update. Do not overwrite **`content/`** or **`assets/uploads/`** with the template's defaults. Do not recreate the repository or replace your personal blog. To also update the help shown on your site, copy `scripts/setup-page.mjs`, `scripts/workshop-page.mjs`, the current `README.md`, and **every file in the current `docs/` folder**, including `REHEARSAL.md` if your older copy does not have it. The guides link to each other, so copying only some can cause a missing-page error. Review any help text you have customized before replacing it.
 
 Commit the updated files to `main`, confirm **Settings → Pages → Source: GitHub Actions**, and run **Deploy blog**. If the new checks find an existing misplaced upload or malformed setting, follow the instructions above; installing the checks does not automatically move files or repair personal text.
 
